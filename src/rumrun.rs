@@ -54,72 +54,119 @@ pub fn run(instructions: Vec<u32>) {
     memory[0] = instructions;
 
     loop {
+        let instruction = memory[0][pcounter as usize];
         match get(&OP, memory[0][pcounter as usize]) {
             o if o == Opcode::CMov as u32 => {
-                cmov(memory[0][pcounter as usize], &mut registers);
+                let ra = get(&RA, instruction);
+                let rb = get(&RB, instruction);
+                let rc = get(&RC, instruction);
+                if registers[rc as usize] != 0 {
+                    registers[ra as usize] = registers[rb as usize];
+                }
                 pcounter += 1;
             }
             o if o == Opcode::Load as u32 => {
-                load(memory[0][pcounter as usize], &mut registers, &mut memory);
+                let ra = get(&RA, instruction);
+                let rb = get(&RB, instruction);
+                let rc = get(&RC, instruction);
+                registers[ra as usize] =
+                    memory[registers[rb as usize] as usize][registers[rc as usize] as usize];
                 pcounter += 1;
             }
             o if o == Opcode::Store as u32 => {
-                store(memory[0][pcounter as usize], &mut registers, &mut memory);
+                let ra = get(&RA, instruction);
+                let rb = get(&RB, instruction);
+                let rc = get(&RC, instruction);
+                memory[registers[ra as usize] as usize][registers[rb as usize] as usize] =
+                    registers[rc as usize];
                 pcounter += 1;
             }
             o if o == Opcode::Add as u32 => {
-                add(memory[0][pcounter as usize], &mut registers);
+                let ra = get(&RA, instruction);
+                let rb = get(&RB, instruction);
+                let rc = get(&RC, instruction);
+                registers[ra as usize] =
+                    registers[rb as usize].wrapping_add(registers[rc as usize]);
                 pcounter += 1;
             }
             o if o == Opcode::Mul as u32 => {
-                mul(memory[0][pcounter as usize], &mut registers);
+                let ra = get(&RA, instruction);
+                let rb = get(&RB, instruction);
+                let rc = get(&RC, instruction);
+                registers[ra as usize] =
+                    registers[rb as usize].wrapping_mul(registers[rc as usize]);
                 pcounter += 1;
             }
             o if o == Opcode::Div as u32 => {
-                div(memory[0][pcounter as usize], &mut registers);
+                let ra = get(&RA, instruction);
+                let rb = get(&RB, instruction);
+                let rc = get(&RC, instruction);
+                registers[ra as usize] = registers[rb as usize] / registers[rc as usize];
                 pcounter += 1;
             }
             o if o == Opcode::Nand as u32 => {
-                nand(memory[0][pcounter as usize], &mut registers);
+                let ra = get(&RA, instruction);
+                let rb = get(&RB, instruction);
+                let rc = get(&RC, instruction);
+                registers[ra as usize] = !(registers[rb as usize] & registers[rc as usize]);
                 pcounter += 1;
             }
             o if o == Opcode::Halt as u32 => {
                 halt();
             }
             o if o == Opcode::MapSegment as u32 => {
-                map(
-                    memory[0][pcounter as usize],
-                    &mut registers,
-                    &mut memory,
-                    &mut id_pool,
-                    &mut max_id,
-                );
+                let rb = get(&RB, instruction);
+                let rc = get(&RC, instruction);
+                let address: u32;
+                if id_pool.is_empty() {
+                    max_id += 1;
+                    address = max_id;
+                    memory.push(vec![0; registers[rc as usize] as usize]);
+                } else {
+                    address = id_pool.pop().unwrap();
+                    memory[address as usize] = vec![0; registers[rc as usize] as usize];
+                }
+                registers[rb as usize] = address;
                 pcounter += 1;
             }
             o if o == Opcode::UnmapSegment as u32 => {
-                unmap(memory[0][pcounter as usize], &mut registers, &mut id_pool);
+                let rc = get(&RC, instruction);
+                id_pool.push(registers[rc as usize]);
                 pcounter += 1;
             }
             o if o == Opcode::Output as u32 => {
-                output(memory[0][pcounter as usize], &mut registers);
+                let rc = get(&RC, instruction);
+                let value = registers[rc as usize];
+                if value > 255 {
+                    eprintln!("Invalid character");
+                } else {
+                    let charvalue = from_u32(value).unwrap() as u8;
+                    stdout().write(&[charvalue]).unwrap();
+                }
                 pcounter += 1;
             }
             o if o == Opcode::Input as u32 => {
-                input(memory[0][pcounter as usize], &mut registers);
+                let rc = get(&RC, instruction);
+                match stdin().bytes().next() {
+                    Some(value) => {
+                        registers[rc as usize] = value.unwrap() as u32;
+                    }
+                    None => registers[rc as usize] = !0 as u32,
+                };
                 pcounter += 1;
             }
             o if o == Opcode::LoadProgram as u32 => {
-                //Think about this.  Do we want to increment counter?
-                loadp(
-                    memory[0][pcounter as usize],
-                    &mut registers,
-                    &mut memory,
-                    &mut pcounter,
-                );
-                //pcounter+=1;
+                let rb = get(&RB, instruction);
+                let rc = get(&RC, instruction);
+                if registers[rb as usize] != 0 {
+                    memory[0] = memory[registers[rb as usize] as usize].clone();
+                }
+                pcounter = registers[rc as usize];
             }
             o if o == Opcode::LoadValue as u32 => {
-                loadv(memory[0][pcounter as usize], &mut registers);
+                let rl = get(&RL, instruction);
+                let vl = get(&VL, instruction);
+                registers[rl as usize] = vl;
                 pcounter += 1;
             }
 
